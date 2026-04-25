@@ -15,7 +15,6 @@
 #'
 prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
-  # 1. Cálculos de fração e F acumulada agrupados por amostra
   tabela_base <- df |>
     dplyr::group_by(.data[[col_amostra]]) |>
     dplyr::arrange(dplyr::desc(.data[[col_diametro]]), .by_group = TRUE) |>
@@ -34,7 +33,6 @@ prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diame
     ) |>
     dplyr::ungroup()
 
-  # 2. Cálculo dos índices tradicionais (DMP e DMG) por amostra
   indices_tradicionais <- tabela_base |>
     dplyr::group_by(.data[[col_amostra]]) |>
     dplyr::summarise(
@@ -52,93 +50,96 @@ prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diame
 
 #' Calcula o Diâmetro Médio Ajustado (DMA)
 #'
-#' Esta função recebe os dados processados e aplica regressões não-lineares
-#' para encontrar o melhor ajuste (maior R2) entre as equações propostas por
-#' van Lier & Albuquerque (1997). Em seguida, calcula o DMA.
-#'
-#' @note Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-#' do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-#' determinação (R2) do ajuste da equação for maior ou igual a 0,99.
-#'
-#' @param df_processado Data frame contendo o elemento `dados_processados`
-#' gerado pela função \code{\link{prep_agregados}}.
-#' @param col_amostra String. Nome da coluna de identificação da amostra.
-#' @param col_diametro String. Nome da coluna de diâmetro das peneiras (mm).
-#'
-#' @return Um data frame contendo o DMA, o modelo selecionado e os
-#' parâmetros (R2, a, b) para cada amostra.
 #' @export
-#'
 calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
 
-  # Função interna auxiliar para calcular o R2 do modelo nls
   calcular_r2 <- function(observado, predito) {
     sq_tot <- sum((observado - mean(observado, na.rm = TRUE))^2, na.rm = TRUE)
     sq_res <- sum((observado - predito)^2, na.rm = TRUE)
     return(1 - (sq_res / sq_tot))
   }
 
-  # Divide os dados em uma lista, separando por amostra
   amostras_lista <- split(df_processado, df_processado[[col_amostra]])
 
-  # Loop sobre cada amostra usando lapply (robusto e não precisa de pacotes extras)
   resultados_dma <- lapply(amostras_lista, function(dados_amostra) {
-
     nome_amostra <- unique(dados_amostra[[col_amostra]])
 
-    # Extrai os vetores para evitar problemas de escopo dentro do nls()
     D_vetor <- dados_amostra[[col_diametro]]
     F_vetor <- dados_amostra$F_acumulada
 
     modelos <- list()
 
-    # Eq 3: F = 1 / (a + b/D)
     tryCatch({
       mod1 <- stats::nls(F_vetor ~ 1 / (a + (b / D_vetor)), start = list(a = 1, b = 1))
       modelos[["Eq3"]] <- list(nome = "Eq3", a = stats::coef(mod1)["a"], b = stats::coef(mod1)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod1)))
     }, error = function(e) NULL)
 
-    # Eq 4: F = 1 / (a + b/D^0.5)
     tryCatch({
       mod2 <- stats::nls(F_vetor ~ 1 / (a + (b / sqrt(D_vetor))), start = list(a = 1, b = 1))
       modelos[["Eq4"]] <- list(nome = "Eq4", a = stats::coef(mod2)["a"], b = stats::coef(mod2)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod2)))
     }, error = function(e) NULL)
 
-    # Eq 5: F = a * D^b
     tryCatch({
       mod3 <- stats::nls(F_vetor ~ a * (D_vetor^b), start = list(a = 1, b = 1))
       modelos[["Eq5"]] <- list(nome = "Eq5", a = stats::coef(mod3)["a"], b = stats::coef(mod3)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod3)))
     }, error = function(e) NULL)
 
-    # Filtra apenas os modelos que convergiram com sucesso
+    tryCatch({
+      mod4 <- stats::nls(F_vetor ~ 1 - exp(-(D_vetor/a)^b), start = list(a = max(D_vetor)/2, b = 1))
+      modelos[["Weibull"]] <- list(nome = "Weibull", a = stats::coef(mod4)["a"], b = stats::coef(mod4)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod4)))
+    }, error = function(e) NULL)
+
+    tryCatch({
+      mod5 <- stats::nls(F_vetor ~ 1 / (1 + exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor)))
+      modelos[["Logistic"]] <- list(nome = "Logistic", a = stats::coef(mod5)["a"], b = stats::coef(mod5)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod5)))
+    }, error = function(e) NULL)
+
+    tryCatch({
+      mod6 <- stats::nls(F_vetor ~ stats::plnorm(D_vetor, a, b), start = list(a = 0, b = 1))
+      modelos[["LogNormal"]] <- list(nome = "LogNormal", a = stats::coef(mod6)["a"], b = stats::coef(mod6)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod6)))
+    }, error = function(e) NULL)
+
+    # Novo Modelo: Gompertz
+    tryCatch({
+      mod7 <- stats::nls(F_vetor ~ exp(-exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor)))
+      modelos[["Gompertz"]] <- list(nome = "Gompertz", a = stats::coef(mod7)["a"], b = stats::coef(mod7)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod7)))
+    }, error = function(e) NULL)
+
     modelos <- Filter(Negate(is.null), modelos)
 
-    # Tratativa caso nenhum modelo convirja
     if (length(modelos) == 0) {
       return(data.frame(amostra_id = nome_amostra, DMA = NA, Modelo = NA, R2 = NA, a = NA, b = NA))
     }
 
-    # Seleciona o melhor modelo (Maior R2)
     melhor <- modelos[[which.max(sapply(modelos, function(x) x$r2))]]
 
-    # --- CÁLCULO DO DIÂMETRO AJUSTADO ---
     soma_F <- dados_amostra$F_acumulada + dados_amostra$F_acumulada_inf
+    F_m <- soma_F / 2
 
     if (melhor$nome == "Eq3") {
       D_ajustado <- (melhor$b * soma_F) / (2 - (melhor$a * soma_F))
     } else if (melhor$nome == "Eq4") {
       D_ajustado <- ((melhor$b * soma_F) / (2 - (melhor$a * soma_F)))^2
-    } else {
+    } else if (melhor$nome == "Eq5") {
       D_ajustado <- (soma_F / (2 * melhor$a))^(1 / melhor$b)
+    } else if (melhor$nome == "Weibull") {
+      D_ajustado <- melhor$a * (-log(1 - pmin(F_m, 0.9999)))^(1 / melhor$b)
+    } else if (melhor$nome == "Logistic") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_ajustado <- melhor$b - (1 / melhor$a) * log((1 / F_m_adj) - 1)
+    } else if (melhor$nome == "LogNormal") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_ajustado <- stats::qlnorm(F_m_adj, melhor$a, melhor$b)
+    } else if (melhor$nome == "Gompertz") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_ajustado <- melhor$b - (1 / melhor$a) * log(-log(F_m_adj))
     }
 
-    # Ponderação pela massa para chegar no DMA
-    # Se der infinito ou NaN por divisão por zero, substituímos por 0
     D_ajustado[!is.finite(D_ajustado)] <- 0
+    D_ajustado[D_ajustado < 0] <- 0
     D_ponderado <- dados_amostra$fracao_massa * D_ajustado
     DMA_final <- sum(D_ponderado, na.rm = TRUE)
 
-    # Monta a linha de resultado para esta amostra
     df_resumo <- data.frame(
       amostra_id = nome_amostra,
       DMA = DMA_final,
@@ -148,17 +149,13 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
       Param_b = melhor$b
     )
 
-    # Renomeia a coluna amostra_id para o nome original que o usuário passou
     colnames(df_resumo)[1] <- col_amostra
-
     return(df_resumo)
   })
 
-  # Empilha os resultados de todas as amostras em uma única tabela
   tabela_final <- do.call(rbind, resultados_dma)
   rownames(tabela_final) <- NULL
 
-  # Verificação da regra de van Lier & Albuquerque (1997)
   if (any(tabela_final$R2 < 0.99, na.rm = TRUE)) {
     warning("Atenção: Pelo menos uma amostra apresentou R2 máximo inferior a 0,99. ",
             "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0,99.")
@@ -170,44 +167,34 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
 
 #' Plota as curvas de retenção e o ajuste do DMA
 #'
-#' Gera um gráfico facetado por amostra, mostrando os pontos observados,
-#' a curva teórica do modelo vencedor e uma linha indicando o DMA.
-#'
-#' @note Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-#' do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-#' determinação (R2) do ajuste da equação for maior ou igual a 0,99.
-#'
-#' @param df_processado Data frame gerado pela função prep_agregados.
-#' @param df_dma Data frame gerado pela função calc_dma.
-#' @param col_amostra String. Nome da coluna de identificação da amostra.
-#' @param col_diametro String. Nome da coluna de diâmetro.
-#'
-#' @return Um objeto ggplot.
 #' @export
-#'
 plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
 
-  # Função interna para gerar pontos da linha suave da equação
   gerar_curva <- function(amostra, mod, param_a, param_b, d_max) {
-    # Cria 100 pontos entre o mínimo e o máximo diâmetro
     d_seq <- seq(0.01, d_max, length.out = 100)
 
     if (mod == "Eq3") {
       f_seq <- 1 / (param_a + (param_b / d_seq))
     } else if (mod == "Eq4") {
       f_seq <- 1 / (param_a + (param_b / sqrt(d_seq)))
-    } else {
+    } else if (mod == "Eq5") {
       f_seq <- param_a * (d_seq^param_b)
+    } else if (mod == "Weibull") {
+      f_seq <- 1 - exp(-(d_seq/param_a)^param_b)
+    } else if (mod == "Logistic") {
+      f_seq <- 1 / (1 + exp(-param_a * (d_seq - param_b)))
+    } else if (mod == "LogNormal") {
+      f_seq <- stats::plnorm(d_seq, param_a, param_b)
+    } else if (mod == "Gompertz") {
+      f_seq <- exp(-exp(-param_a * (d_seq - param_b)))
     }
 
     df <- data.frame(amostra_id = amostra, diametro_mm = d_seq, F_teorica = f_seq)
-    # Garante que o nome da coluna da amostra seja dinâmico
     colnames(df)[1] <- col_amostra
     colnames(df)[2] <- col_diametro
     return(df)
   }
 
-  # Aplica a função para cada linha (amostra) da tabela de resultados
   d_maximo <- max(df_processado[[col_diametro]], na.rm = TRUE)
 
   lista_curvas <- lapply(1:nrow(df_dma), function(i) {
@@ -220,20 +207,13 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
     )
   })
 
-  # Empilha todas as curvas teóricas geradas
   df_curvas <- do.call(rbind, lista_curvas)
 
-  # Constrói o gráfico com ggplot2
   p <- ggplot2::ggplot() +
-    # A linha suave do modelo teórico (azul)
     ggplot2::geom_line(data = df_curvas, ggplot2::aes(x = .data[[col_diametro]], y = F_teorica), color = "blue", linewidth = 0.8) +
-    # Os pontos reais observados (preto)
     ggplot2::geom_point(data = df_processado, ggplot2::aes(x = .data[[col_diametro]], y = F_acumulada), size = 2) +
-    # Linha vertical indicando exatamente onde o DMA caiu (vermelho)
     ggplot2::geom_vline(data = df_dma, ggplot2::aes(xintercept = DMA), color = "darkred", linetype = "dashed") +
-    # Divide o gráfico em vários quadros (um por amostra)
     ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
-    # Estética final
     ggplot2::labs(
       title = "Ajuste do Diâmetro Médio de Agregados (DMA)",
       subtitle = "Linha azul: Modelo Vencedor | Linha tracejada vermelha: DMA",
@@ -244,69 +224,73 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
     ggplot2::theme_bw() +
     ggplot2::theme(
       strip.background = ggplot2::element_rect(fill = "gray90"),
-      strip.text = ggplot2::element_text(face = "bold"),
-      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-      plot.subtitle = ggplot2::element_text(hjust = 0.5)
+      strip.text = ggplot2::element_text(face = "bold")
     )
 
   return(p)
 }
 
+
 #' Executa análise completa e detalhada de agregação
 #'
-#' Esta função automatiza todo o fluxo: prepara os dados, calcula os índices
-#' tradicionais e o DMA, e fornece um relatório detalhado do desempenho de
-#' todas as três equações de ajuste para cada amostra, incluindo o valor do
-#' DMA que cada uma resultaria.
-#'
-#' @note Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-#' do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-#' determinação (R2) do ajuste da equação for maior ou igual a 0,99.
-#'
-#' @param dados Data frame bruto (formato longo) com os dados de peneiramento.
-#' @param col_amostra String. Nome da coluna de amostra.
-#' @param col_diametro String. Nome da coluna de diâmetro (mm).
-#' @param col_massa String. Nome da coluna de massa (g).
-#'
-#' @return Uma lista contendo:
-#' \itemize{
-#'   \item \code{resumo}: Tabela com DMP, DMG, DMA, o melhor modelo e o status de recomendação para cada amostra.
-#'   \item \code{detalhes_equacoes}: Tabela detalhada com R2, parâmetros a, b e o DMA resultante de TODAS as equações testadas.
-#' }
 #' @export
-#'
 analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
-  # 1. Preparação interna
   prep <- prep_agregados(dados, col_amostra, col_diametro, col_massa)
   df_proc <- prep$dados_processados
   indices_trad <- prep$indices
 
-  # Função auxiliar para R2
   calc_r2 <- function(obs, pred) {
     sq_tot <- sum((obs - mean(obs, na.rm = TRUE))^2, na.rm = TRUE)
     sq_res <- sum((obs - pred)^2, na.rm = TRUE)
     return(1 - (sq_res / sq_tot))
   }
 
-  # Função auxiliar para calcular DMA específico de uma equação
   calc_dma_especifico <- function(dados_st, eq_nome, a, b) {
     soma_F <- dados_st$F_acumulada + dados_st$F_acumulada_inf
+    F_m <- soma_F / 2
+
     if (eq_nome == "Eq3") {
       D_aj <- (b * soma_F) / (2 - (a * soma_F))
     } else if (eq_nome == "Eq4") {
       D_aj <- ((b * soma_F) / (2 - (a * soma_F)))^2
-    } else {
+    } else if (eq_nome == "Eq5") {
       D_aj <- (soma_F / (2 * a))^(1 / b)
+    } else if (eq_nome == "Weibull") {
+      D_aj <- a * (-log(1 - pmin(F_m, 0.9999)))^(1 / b)
+    } else if (eq_nome == "Logistic") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_aj <- b - (1 / a) * log((1 / F_m_adj) - 1)
+    } else if (eq_nome == "LogNormal") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_aj <- stats::qlnorm(F_m_adj, a, b)
+    } else if (eq_nome == "Gompertz") {
+      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
+      D_aj <- b - (1 / a) * log(-log(F_m_adj))
     }
+
     D_aj[!is.finite(D_aj)] <- 0
+    D_aj[D_aj < 0] <- 0
     return(sum(dados_st$fracao_massa * D_aj, na.rm = TRUE))
   }
 
   amostras_lista <- split(df_proc, df_proc[[col_amostra]])
-
   lista_resumo_dma <- list()
   lista_detalhes_modelos <- list()
+
+  tentar_ajuste <- function(formula_nls, start_list, eq_nome, D_vetor, F_obs, dados_st, id) {
+    tryCatch({
+      m <- stats::nls(formula_nls, start = start_list)
+      a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
+      dma_eq <- calc_dma_especifico(dados_st, eq_nome, a_val, b_val)
+      data.frame(
+        amostra_id = id, Equacao = eq_nome, R2 = calc_r2(F_obs, stats::predict(m)),
+        DMA_calculado = dma_eq, Param_a = a_val, Param_b = b_val
+      )
+    }, error = function(e) {
+      data.frame(amostra_id = id, Equacao = eq_nome, R2 = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA)
+    })
+  }
 
   for (i in seq_along(amostras_lista)) {
     dados_st <- amostras_lista[[i]]
@@ -314,51 +298,17 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
     D <- dados_st[[col_diametro]]
     F_obs <- dados_st$F_acumulada
 
-    resultados_st <- data.frame()
+    res_eq3 <- tentar_ajuste(F_obs ~ 1 / (a + (b / D)), list(a = 1, b = 1), "Eq3", D, F_obs, dados_st, id)
+    res_eq4 <- tentar_ajuste(F_obs ~ 1 / (a + (b / sqrt(D))), list(a = 1, b = 1), "Eq4", D, F_obs, dados_st, id)
+    res_eq5 <- tentar_ajuste(F_obs ~ a * (D^b), list(a = 1, b = 1), "Eq5", D, F_obs, dados_st, id)
+    res_weibull <- tentar_ajuste(F_obs ~ 1 - exp(-(D/a)^b), list(a = max(D)/2, b = 1), "Weibull", D, F_obs, dados_st, id)
+    res_logistic <- tentar_ajuste(F_obs ~ 1 / (1 + exp(-a * (D - b))), list(a = 1, b = mean(D)), "Logistic", D, F_obs, dados_st, id)
+    res_lognormal <- tentar_ajuste(F_obs ~ stats::plnorm(D, a, b), list(a = 0, b = 1), "LogNormal", D, F_obs, dados_st, id)
+    res_gompertz <- tentar_ajuste(F_obs ~ exp(-exp(-a * (D - b))), list(a = 1, b = mean(D)), "Gompertz", D, F_obs, dados_st, id)
 
-    # --- Testar Eq 3 ---
-    tryCatch({
-      m <- stats::nls(F_obs ~ 1 / (a + (b / D)), start = list(a = 1, b = 1))
-      a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
-      dma_eq <- calc_dma_especifico(dados_st, "Eq3", a_val, b_val)
-      resultados_st <- rbind(resultados_st, data.frame(
-        amostra_id = id, Equacao = "Eq3", R2 = calc_r2(F_obs, stats::predict(m)),
-        DMA_calculado = dma_eq, Param_a = a_val, Param_b = b_val
-      ))
-    }, error = function(e) {
-      resultados_st <<- rbind(resultados_st, data.frame(amostra_id = id, Equacao = "Eq3", R2 = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA))
-    })
-
-    # --- Testar Eq 4 ---
-    tryCatch({
-      m <- stats::nls(F_obs ~ 1 / (a + (b / sqrt(D))), start = list(a = 1, b = 1))
-      a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
-      dma_eq <- calc_dma_especifico(dados_st, "Eq4", a_val, b_val)
-      resultados_st <- rbind(resultados_st, data.frame(
-        amostra_id = id, Equacao = "Eq4", R2 = calc_r2(F_obs, stats::predict(m)),
-        DMA_calculado = dma_eq, Param_a = a_val, Param_b = b_val
-      ))
-    }, error = function(e) {
-      resultados_st <<- rbind(resultados_st, data.frame(amostra_id = id, Equacao = "Eq4", R2 = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA))
-    })
-
-    # --- Testar Eq 5 ---
-    tryCatch({
-      m <- stats::nls(F_obs ~ a * (D^b), start = list(a = 1, b = 1))
-      a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
-      dma_eq <- calc_dma_especifico(dados_st, "Eq5", a_val, b_val)
-      resultados_st <- rbind(resultados_st, data.frame(
-        amostra_id = id, Equacao = "Eq5", R2 = calc_r2(F_obs, stats::predict(m)),
-        DMA_calculado = dma_eq, Param_a = a_val, Param_b = b_val
-      ))
-    }, error = function(e) {
-      resultados_st <<- rbind(resultados_st, data.frame(amostra_id = id, Equacao = "Eq5", R2 = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA))
-    })
-
+    resultados_st <- rbind(res_eq3, res_eq4, res_eq5, res_weibull, res_logistic, res_lognormal, res_gompertz)
     lista_detalhes_modelos[[i]] <- resultados_st
 
-    # Selecionar a melhor (pelo R2) para o resumo final
-    # Remove NAs para a comparação
     res_validos <- resultados_st[!is.na(resultados_st$R2), ]
     if(nrow(res_validos) > 0) {
       melhor <- res_validos[which.max(res_validos$R2), ]
@@ -371,55 +321,29 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
     }
   }
 
-  # Consolidar tabelas
   tab_dma <- do.call(rbind, lista_resumo_dma)
   tab_detalhes <- do.call(rbind, lista_detalhes_modelos)
-
-  # Renomear colunas para bater com o input original do usuário
   colnames(tab_dma)[1] <- col_amostra
   colnames(tab_detalhes)[1] <- col_amostra
 
-  # Cruzando com DMP e DMG
   resumo_final <- dplyr::left_join(indices_trad, tab_dma, by = col_amostra)
-
-  # Adicionando a coluna de validação da recomendação dos autores
   resumo_final$Uso_Recomendado <- ifelse(resumo_final$R2_Melhor >= 0.99, "Sim", "Não (R2 < 0.99)")
 
-  # Verificação da regra de van Lier & Albuquerque (1997) para disparar o aviso
   if (any(resumo_final$R2_Melhor < 0.99, na.rm = TRUE)) {
     warning("Atenção: Pelo menos uma amostra apresentou R2 máximo inferior a 0,99. ",
-            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0,99. ",
-            "Verifique a coluna 'Uso_Recomendado' no resumo gerado.")
+            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0,99.")
   }
 
-  return(list(
-    resumo = resumo_final,
-    detalhes_equacoes = tab_detalhes
-  ))
+  return(list(resumo = resumo_final, detalhes_equacoes = tab_detalhes))
 }
 
 
 #' Gráfico de diagnóstico comparativo para uma amostra
 #'
-#' Gera uma figura com três gráficos (Eq3, Eq4 e Eq5) para uma amostra específica,
-#' exibindo o R2, os parâmetros de ajuste e o DMA calculado em cada um.
-#'
-#' @note Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-#' do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-#' determinação (R2) do ajuste da equação for maior ou igual a 0,99.
-#'
-#' @param dados Data frame bruto no formato longo.
-#' @param amostra_id_alvo O identificador da amostra que deseja analisar.
-#' @param col_amostra Nome da coluna de amostra.
-#' @param col_diametro Nome da coluna de diâmetro (mm).
-#' @param col_massa Nome da coluna de massa (g).
-#'
 #' @export
-#'
 plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amostra_id",
                                      col_diametro = "diametro_mm", col_massa = "massa_g") {
 
-  # 1. Filtrar e preparar dados da amostra
   dados_st <- dados[dados[[col_amostra]] == amostra_id_alvo, ]
   prep <- prep_agregados(dados_st, col_amostra, col_diametro, col_massa)
   df_proc <- prep$dados_processados
@@ -427,13 +351,19 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
   D <- df_proc[[col_diametro]]
   F_obs <- df_proc$F_acumulada
   soma_F <- df_proc$F_acumulada + df_proc$F_acumulada_inf
+  F_m <- soma_F / 2
 
-  # Funções auxiliares internas
   calc_dma_val <- function(eq, a, b) {
     if (eq == "Eq3") D_aj <- (b * soma_F) / (2 - (a * soma_F))
     else if (eq == "Eq4") D_aj <- ((b * soma_F) / (2 - (a * soma_F)))^2
-    else D_aj <- (soma_F / (2 * a))^(1 / b)
+    else if (eq == "Eq5") D_aj <- (soma_F / (2 * a))^(1 / b)
+    else if (eq == "Weibull") D_aj <- a * (-log(1 - pmin(F_m, 0.9999)))^(1 / b)
+    else if (eq == "Logistic") D_aj <- b - (1 / a) * log((1 / pmax(pmin(F_m, 0.9999), 0.0001)) - 1)
+    else if (eq == "LogNormal") D_aj <- stats::qlnorm(pmax(pmin(F_m, 0.9999), 0.0001), a, b)
+    else if (eq == "Gompertz") D_aj <- b - (1 / a) * log(-log(pmax(pmin(F_m, 0.9999), 0.0001)))
+
     D_aj[!is.finite(D_aj)] <- 0
+    D_aj[D_aj < 0] <- 0
     return(sum(df_proc$fracao_massa * D_aj, na.rm = TRUE))
   }
 
@@ -443,15 +373,18 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     return(1 - (sq_res / sq_tot))
   }
 
-  # 2. Processar as 3 equações para gerar dados de curva e labels
   plot_data_list <- list()
   curva_data_list <- list()
 
-  equacoes <- c("Eq3", "Eq4", "Eq5")
+  equacoes <- c("Eq3", "Eq4", "Eq5", "Weibull", "Logistic", "LogNormal", "Gompertz")
   formulas <- list(
     Eq3 = function(D, a, b) 1 / (a + (b / D)),
     Eq4 = function(D, a, b) 1 / (a + (b / sqrt(D))),
-    Eq5 = function(D, a, b) a * (D^b)
+    Eq5 = function(D, a, b) a * (D^b),
+    Weibull = function(D, a, b) 1 - exp(-(D/a)^b),
+    Logistic = function(D, a, b) 1 / (1 + exp(-a * (D - b))),
+    LogNormal = function(D, a, b) stats::plnorm(D, a, b),
+    Gompertz = function(D, a, b) exp(-exp(-a * (D - b)))
   )
 
   for (eq in equacoes) {
@@ -460,27 +393,28 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     tryCatch({
       if(eq == "Eq3") m <- stats::nls(F_obs ~ 1 / (a + (b / D)), start = list(a = 1, b = 1))
       else if(eq == "Eq4") m <- stats::nls(F_obs ~ 1 / (a + (b / sqrt(D))), start = list(a = 1, b = 1))
-      else m <- stats::nls(F_obs ~ a * (D^b), start = list(a = 1, b = 1))
+      else if(eq == "Eq5") m <- stats::nls(F_obs ~ a * (D^b), start = list(a = 1, b = 1))
+      else if(eq == "Weibull") m <- stats::nls(F_obs ~ 1 - exp(-(D/a)^b), start = list(a = max(D)/2, b = 1))
+      else if(eq == "Logistic") m <- stats::nls(F_obs ~ 1 / (1 + exp(-a * (D - b))), start = list(a = 1, b = mean(D)))
+      else if(eq == "LogNormal") m <- stats::nls(F_obs ~ stats::plnorm(D, a, b), start = list(a = 0, b = 1))
+      else if(eq == "Gompertz") m <- stats::nls(F_obs ~ exp(-exp(-a * (D - b))), start = list(a = 1, b = mean(D)))
 
       a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
       dma_val <- calc_dma_val(eq, a_val, b_val)
       r2_val <- calc_r2(F_obs, stats::predict(m))
 
-      # Gerar curva teórica
       d_seq <- seq(0.01, max(D), length.out = 100)
       f_seq <- formulas[[eq]](d_seq, a_val, b_val)
       curva_data_list[[eq]] <- data.frame(diametro_mm = d_seq, F_teorica = f_seq, Equacao = eq)
 
     }, error = function(e) { })
 
-    # Criar label informativo para o facet (Agora com R2)
     label_info <- paste0(eq, "\n",
                          "R² = ", ifelse(is.na(r2_val), "NA", round(r2_val, 4)), "\n",
                          "a = ", ifelse(is.na(a_val), "NA", round(a_val, 3)), "\n",
                          "b = ", ifelse(is.na(b_val), "NA", round(b_val, 3)), "\n",
                          "DMA = ", ifelse(is.na(dma_val), "NA", round(dma_val, 3)), " mm")
 
-    # Dados dos pontos observados com o label da faceta
     plot_data_list[[eq]] <- data.frame(
       diametro_mm = D,
       F_acumulada = F_obs,
@@ -496,12 +430,11 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
   df_pontos <- do.call(rbind, plot_data_list)
   df_curvas <- do.call(rbind, curva_data_list)
 
-  # 3. Gerar o gráfico
   p <- ggplot2::ggplot() +
     ggplot2::geom_line(data = df_curvas, ggplot2::aes(x = diametro_mm, y = F_teorica), color = "blue") +
     ggplot2::geom_point(data = df_pontos, ggplot2::aes(x = diametro_mm, y = F_acumulada)) +
     ggplot2::geom_vline(data = df_pontos, ggplot2::aes(xintercept = DMA_ref), color = "red", linetype = "dashed") +
-    ggplot2::facet_wrap(~Equacao_Label) +
+    ggplot2::facet_wrap(~Equacao_Label, ncol = 3) + # Organizado em 3 colunas pra ficar mais bonito com 7 facetas
     ggplot2::labs(title = paste("Diagnóstico de Modelos - Amostra:", amostra_id_alvo),
                   x = "Diâmetro (mm)", y = "Fração Acumulada (g/g)",
                   caption = "Nota: van Lier & Albuquerque (1997) recomendam o uso do DMA apenas se R² >= 0,99.") +
