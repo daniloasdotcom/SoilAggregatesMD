@@ -443,6 +443,56 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
   return(p)
 }
 
+#' Plota a distribuição de tamanho de agregados
+#'
+#' Cria um gráfico de barras ilustrando a proporção de massa retida
+#' em cada classe de diâmetro para cada amostra.
+#'
+#' @param df_processado Data frame. O objeto \code{dados_processados} retornado pela função \code{prep_agregados()}.
+#' @param col_amostra String. Nome da coluna de identificação da amostra.
+#' @param col_diametro String. Nome da coluna de diâmetro limite das classes (mm).
+#'
+#' @return Um objeto ggplot com o painel de distribuição por amostra.
+#' @export
+plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
+
+  # Criar uma cópia isolada para plotagem
+  df_plot <- df_processado
+
+  # Converter fração para porcentagem para o eixo Y
+  df_plot$Porcentagem <- df_plot$fracao_massa * 100
+
+  # Ordenar o eixo X (peneiras) de forma decrescente (do maior diâmetro para o menor)
+  niveis_ordem <- sort(unique(df_plot[[col_diametro]]), decreasing = TRUE)
+
+  p <- ggplot2::ggplot(df_plot, ggplot2::aes(
+    x = factor(.data[[col_diametro]], levels = niveis_ordem),
+    y = Porcentagem
+  )) +
+    ggplot2::geom_col(fill = "#2c3e50", color = "black", alpha = 0.85) +
+    ggplot2::geom_text(ggplot2::aes(label = round(Porcentagem, 1)),
+                       vjust = -0.5, size = 3, color = "black") +
+    ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
+    ggplot2::labs(
+      title = "Distribuição de Agregados por Classe de Tamanho",
+      x = "Diâmetro Limite da Classe (mm)",
+      y = "Massa Retida (%)",
+      caption = "Valores sobre as barras representam a porcentagem de massa."
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      strip.background = ggplot2::element_rect(fill = "gray90"),
+      strip.text = ggplot2::element_text(face = "bold"),
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+    )
+
+  # Adiciona uma margem superior para o texto não cortar
+  p <- p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15)))
+
+  return(p)
+}
+
+
 
 #' Exporta os resultados da análise de agregação para Excel
 #'

@@ -1,4 +1,4 @@
-# SoilAggregatesMD
+# SoilAggregatesMD <img src="man/figures/logo.png" align="right" height="139" />
 
 O objetivo do **SoilAggregatesMD** é automatizar o cálculo e a análise da distribuição de agregados do solo, com foco especial no **Diâmetro Médio Ajustado (DMA)**, conforme proposto por van Lier & Albuquerque (1997).
 
