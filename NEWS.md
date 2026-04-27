@@ -1,3 +1,9 @@
+# SoilAggregatesMD 0.3.0
+
+* **Nova Função de Exportação:** Adicionada a função `exportar_analise_xlsx()`, que permite exportar os resultados da `analise_completa_dma()` diretamente para um arquivo Excel (`.xlsx`). O arquivo gerado organiza automaticamente o resumo geral e os detalhes de ajuste dos modelos em abas separadas.
+* **Nova Dependência:** Inclusão do pacote `writexl` na seção *Imports* do projeto, garantindo uma exportação nativa, rápida e sem necessidade de instalação do Java na máquina do usuário.
+* **Correção de Bug (Gráficos):** Corrigido um erro de "comprimento zero" na função `plot_dma()`. A função `analise_completa_dma()` foi atualizada para repassar corretamente as colunas `Modelo_Vencedor`, `Param_a` e `Param_b` na tabela de resumo, garantindo a renderização perfeita da curva teórica.
+
 # SoilAggregatesMD 0.2.0
 
 * **Expansão de Modelos para DMA:** O cálculo do Diâmetro Médio Ajustado (`calc_dma()`) agora avalia automaticamente 7 modelos matemáticos. Foram adicionados 4 novos modelos paramétricos globais contínuos (Weibull, Logística, Log-Normal e Gompertz) para representar melhor amostras com assimetrias ou distribuições em "S", somando-se às 3 equações empíricas originais.
