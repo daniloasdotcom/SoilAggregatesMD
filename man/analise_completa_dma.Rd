@@ -11,30 +11,6 @@ analise_completa_dma(
   col_massa = "massa_g"
 )
 }
-\arguments{
-\item{dados}{Data frame bruto (formato longo) com os dados de peneiramento.}
-
-\item{col_amostra}{String. Nome da coluna de amostra.}
-
-\item{col_diametro}{String. Nome da coluna de diâmetro (mm).}
-
-\item{col_massa}{String. Nome da coluna de massa (g).}
-}
-\value{
-Uma lista contendo:
-\itemize{
-\item \code{resumo}: Tabela com DMP, DMG, DMA, o melhor modelo e o status de recomendação para cada amostra.
-\item \code{detalhes_equacoes}: Tabela detalhada com R2, parâmetros a, b e o DMA resultante de TODAS as equações testadas.
-}
-}
 \description{
-Esta função automatiza todo o fluxo: prepara os dados, calcula os índices
-tradicionais e o DMA, e fornece um relatório detalhado do desempenho de
-todas as três equações de ajuste para cada amostra, incluindo o valor do
-DMA que cada uma resultaria.
-}
-\note{
-Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-determinação (R2) do ajuste da equação for maior ou igual a 0,99.
+Executa análise completa e detalhada de agregação
 }

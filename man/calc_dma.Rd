@@ -10,25 +10,6 @@ calc_dma(
   col_diametro = "diametro_mm"
 )
 }
-\arguments{
-\item{df_processado}{Data frame contendo o elemento \code{dados_processados}
-gerado pela função \code{\link{prep_agregados}}.}
-
-\item{col_amostra}{String. Nome da coluna de identificação da amostra.}
-
-\item{col_diametro}{String. Nome da coluna de diâmetro das peneiras (mm).}
-}
-\value{
-Um data frame contendo o DMA, o modelo selecionado e os
-parâmetros (R2, a, b) para cada amostra.
-}
 \description{
-Esta função recebe os dados processados e aplica regressões não-lineares
-para encontrar o melhor ajuste (maior R2) entre as equações propostas por
-van Lier & Albuquerque (1997). Em seguida, calcula o DMA.
-}
-\note{
-Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-determinação (R2) do ajuste da equação for maior ou igual a 0,99.
+Calcula o Diâmetro Médio Ajustado (DMA)
 }

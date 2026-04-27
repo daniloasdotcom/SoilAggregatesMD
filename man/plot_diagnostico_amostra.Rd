@@ -12,23 +12,6 @@ plot_diagnostico_amostra(
   col_massa = "massa_g"
 )
 }
-\arguments{
-\item{dados}{Data frame bruto no formato longo.}
-
-\item{amostra_id_alvo}{O identificador da amostra que deseja analisar.}
-
-\item{col_amostra}{Nome da coluna de amostra.}
-
-\item{col_diametro}{Nome da coluna de diâmetro (mm).}
-
-\item{col_massa}{Nome da coluna de massa (g).}
-}
 \description{
-Gera uma figura com três gráficos (Eq3, Eq4 e Eq5) para uma amostra específica,
-exibindo o R2, os parâmetros de ajuste e o DMA calculado em cada um.
-}
-\note{
-Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-determinação (R2) do ajuste da equação for maior ou igual a 0,99.
+Gráfico de diagnóstico comparativo para uma amostra
 }

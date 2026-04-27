@@ -11,21 +11,6 @@ prep_agregados(
   col_massa = "massa_g"
 )
 }
-\arguments{
-\item{df}{Data frame contendo os dados de peneiramento.}
-
-\item{col_amostra}{String. Nome da coluna de identificação da amostra.}
-
-\item{col_diametro}{String. Nome da coluna de diâmetro das peneiras (mm).}
-
-\item{col_massa}{String. Nome da coluna de massa retida (g).}
-}
-\value{
-Uma lista contendo dois data frames: \code{dados_processados}
-(com as frações calculadas) e \code{indices} (com DMP e DMG por amostra).
-}
 \description{
-Esta função recebe um data frame no formato longo contendo dados de
-agregados de solo e calcula as frações de massa, o diâmetro aritmético
-e os índices tradicionais (DMP e DMG) para cada amostra.
+Prepara dados de peneiramento e calcula DMP e DMG
 }

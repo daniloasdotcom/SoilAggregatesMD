@@ -2,6 +2,7 @@
 
 export(analise_completa_dma)
 export(calc_dma)
+export(exportar_analise_xlsx)
 export(plot_diagnostico_amostra)
 export(plot_dma)
 export(prep_agregados)

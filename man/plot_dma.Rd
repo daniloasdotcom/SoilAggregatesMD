@@ -11,24 +11,6 @@ plot_dma(
   col_diametro = "diametro_mm"
 )
 }
-\arguments{
-\item{df_processado}{Data frame gerado pela função prep_agregados.}
-
-\item{df_dma}{Data frame gerado pela função calc_dma.}
-
-\item{col_amostra}{String. Nome da coluna de identificação da amostra.}
-
-\item{col_diametro}{String. Nome da coluna de diâmetro.}
-}
-\value{
-Um objeto ggplot.
-}
 \description{
-Gera um gráfico facetado por amostra, mostrando os pontos observados,
-a curva teórica do modelo vencedor e uma linha indicando o DMA.
-}
-\note{
-Segundo van Lier & Albuquerque (1997), o método proposto para o cálculo
-do DMA deve ser aplicado sem ressalvas apenas quando o coeficiente de
-determinação (R2) do ajuste da equação for maior ou igual a 0,99.
+Plota as curvas de retenção e o ajuste do DMA
 }
