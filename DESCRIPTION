@@ -12,6 +12,7 @@ RoxygenNote: 7.3.3
 Imports: 
     dplyr,
     ggplot2,
-    stats
+    stats,
+    writexl
 URL: https://github.com/daniloasdotcom/SoilAggregatesMD
 BugReports: https://github.com/daniloasdotcom/SoilAggregatesMD/issues

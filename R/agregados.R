@@ -1,18 +1,6 @@
 #' Prepara dados de peneiramento e calcula DMP e DMG
 #'
-#' Esta função recebe um data frame no formato longo contendo dados de
-#' agregados de solo e calcula as frações de massa, o diâmetro aritmético
-#' e os índices tradicionais (DMP e DMG) para cada amostra.
-#'
-#' @param df Data frame contendo os dados de peneiramento.
-#' @param col_amostra String. Nome da coluna de identificação da amostra.
-#' @param col_diametro String. Nome da coluna de diâmetro das peneiras (mm).
-#' @param col_massa String. Nome da coluna de massa retida (g).
-#'
-#' @return Uma lista contendo dois data frames: \code{dados_processados}
-#' (com as frações calculadas) e \code{indices} (com DMP e DMG por amostra).
 #' @export
-#'
 prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
   tabela_base <- df |>
@@ -99,7 +87,6 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
       modelos[["LogNormal"]] <- list(nome = "LogNormal", a = stats::coef(mod6)["a"], b = stats::coef(mod6)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod6)))
     }, error = function(e) NULL)
 
-    # Novo Modelo: Gompertz
     tryCatch({
       mod7 <- stats::nls(F_vetor ~ exp(-exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor)))
       modelos[["Gompertz"]] <- list(nome = "Gompertz", a = stats::coef(mod7)["a"], b = stats::coef(mod7)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod7)))
@@ -312,12 +299,21 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
     res_validos <- resultados_st[!is.na(resultados_st$R2), ]
     if(nrow(res_validos) > 0) {
       melhor <- res_validos[which.max(res_validos$R2), ]
+
+      # --- A CORREÇÃO ESTÁ AQUI NESTE BLOCO ---
       lista_resumo_dma[[i]] <- data.frame(
-        amostra_id = id, DMA = melhor$DMA_calculado,
-        Melhor_Equacao = melhor$Equacao, R2_Melhor = melhor$R2
+        amostra_id = id,
+        DMA = melhor$DMA_calculado,
+        Modelo_Vencedor = melhor$Equacao, # Nome corrigido para combinar com o plot
+        R2_Melhor = melhor$R2,
+        Param_a = melhor$Param_a,         # Adicionado para o plot
+        Param_b = melhor$Param_b          # Adicionado para o plot
       )
     } else {
-      lista_resumo_dma[[i]] <- data.frame(amostra_id = id, DMA = NA, Melhor_Equacao = NA, R2_Melhor = NA)
+      lista_resumo_dma[[i]] <- data.frame(
+        amostra_id = id, DMA = NA, Modelo_Vencedor = NA,
+        R2_Melhor = NA, Param_a = NA, Param_b = NA
+      )
     }
   }
 
@@ -434,7 +430,7 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     ggplot2::geom_line(data = df_curvas, ggplot2::aes(x = diametro_mm, y = F_teorica), color = "blue") +
     ggplot2::geom_point(data = df_pontos, ggplot2::aes(x = diametro_mm, y = F_acumulada)) +
     ggplot2::geom_vline(data = df_pontos, ggplot2::aes(xintercept = DMA_ref), color = "red", linetype = "dashed") +
-    ggplot2::facet_wrap(~Equacao_Label, ncol = 3) + # Organizado em 3 colunas pra ficar mais bonito com 7 facetas
+    ggplot2::facet_wrap(~Equacao_Label, ncol = 3) +
     ggplot2::labs(title = paste("Diagnóstico de Modelos - Amostra:", amostra_id_alvo),
                   x = "Diâmetro (mm)", y = "Fração Acumulada (g/g)",
                   caption = "Nota: van Lier & Albuquerque (1997) recomendam o uso do DMA apenas se R² >= 0,99.") +
@@ -445,4 +441,40 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     )
 
   return(p)
+}
+
+
+#' Exporta os resultados da análise de agregação para Excel
+#'
+#' Esta função recebe o objeto de lista gerado pela função
+#' \code{analise_completa_dma()} e salva as tabelas de resumo e
+#' detalhes em abas separadas de um arquivo .xlsx.
+#'
+#' @param lista_analise Lista. O objeto retornado por \code{analise_completa_dma()}.
+#' @param caminho_arquivo String. O nome ou caminho completo do arquivo a ser criado.
+#'
+#' @return A função não retorna um objeto no R, mas salva o arquivo no disco.
+#' @export
+#'
+exportar_analise_xlsx <- function(lista_analise, caminho_arquivo = "resultados_dma.xlsx") {
+
+  if (!requireNamespace("writexl", quietly = TRUE)) {
+    stop(
+      "O pacote 'writexl' é necessário para esta função. ",
+      "Por favor, instale-o com install.packages('writexl')"
+    )
+  }
+
+  if (!is.list(lista_analise) || !all(c("resumo", "detalhes_equacoes") %in% names(lista_analise))) {
+    stop("A entrada deve ser a lista retornada pela função analise_completa_dma().")
+  }
+
+  dados_para_exportar <- list(
+    "Resumo_Geral" = lista_analise$resumo,
+    "Detalhes_dos_Modelos" = lista_analise$detalhes_equacoes
+  )
+
+  writexl::write_xlsx(dados_para_exportar, path = caminho_arquivo)
+
+  message(paste("Arquivo exportado com sucesso para:", caminho_arquivo))
 }
