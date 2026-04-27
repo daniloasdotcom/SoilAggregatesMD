@@ -151,30 +151,45 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
   return(tabela_final)
 }
 
-
 #' Plota as curvas de retenção e o ajuste do DMA
 #'
+#' @param df_processado Data frame retornado por \code{prep_agregados()}.
+#' @param df_dma Data frame de resumo retornado por \code{analise_completa_dma()}.
+#' @param col_amostra String. Nome da coluna de identificação.
+#' @param col_diametro String. Nome da coluna de diâmetro (mm).
+#' @param amostras_selecionadas Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.
+#'
 #' @export
-plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
+plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diametro = "diametro_mm", amostras_selecionadas = NULL) {
+
+  amostras_totais <- unique(df_processado[[col_amostra]])
+
+  if (is.null(amostras_selecionadas)) {
+    if (length(amostras_totais) > 6) {
+      message("Nenhuma amostra específica foi selecionada. Exibindo as 6 primeiras. Use o argumento 'amostras_selecionadas' para customizar.")
+      amostras_selecionadas <- amostras_totais[1:6]
+    } else {
+      amostras_selecionadas <- amostras_totais
+    }
+  } else {
+    amostras_selecionadas <- intersect(amostras_selecionadas, amostras_totais)
+    if (length(amostras_selecionadas) > 6) {
+      warning("Você selecionou mais de 6 amostras. O gráfico pode ficar comprimido.")
+    }
+  }
+
+  df_proc_subset <- df_processado[df_processado[[col_amostra]] %in% amostras_selecionadas, ]
+  df_dma_subset <- df_dma[df_dma[[col_amostra]] %in% amostras_selecionadas, ]
 
   gerar_curva <- function(amostra, mod, param_a, param_b, d_max) {
     d_seq <- seq(0.01, d_max, length.out = 100)
-
-    if (mod == "Eq3") {
-      f_seq <- 1 / (param_a + (param_b / d_seq))
-    } else if (mod == "Eq4") {
-      f_seq <- 1 / (param_a + (param_b / sqrt(d_seq)))
-    } else if (mod == "Eq5") {
-      f_seq <- param_a * (d_seq^param_b)
-    } else if (mod == "Weibull") {
-      f_seq <- 1 - exp(-(d_seq/param_a)^param_b)
-    } else if (mod == "Logistic") {
-      f_seq <- 1 / (1 + exp(-param_a * (d_seq - param_b)))
-    } else if (mod == "LogNormal") {
-      f_seq <- stats::plnorm(d_seq, param_a, param_b)
-    } else if (mod == "Gompertz") {
-      f_seq <- exp(-exp(-param_a * (d_seq - param_b)))
-    }
+    if (mod == "Eq3") f_seq <- 1 / (param_a + (param_b / d_seq))
+    else if (mod == "Eq4") f_seq <- 1 / (param_a + (param_b / sqrt(d_seq)))
+    else if (mod == "Eq5") f_seq <- param_a * (d_seq^param_b)
+    else if (mod == "Weibull") f_seq <- 1 - exp(-(d_seq/param_a)^param_b)
+    else if (mod == "Logistic") f_seq <- 1 / (1 + exp(-param_a * (d_seq - param_b)))
+    else if (mod == "LogNormal") f_seq <- stats::plnorm(d_seq, param_a, param_b)
+    else if (mod == "Gompertz") f_seq <- exp(-exp(-param_a * (d_seq - param_b)))
 
     df <- data.frame(amostra_id = amostra, diametro_mm = d_seq, F_teorica = f_seq)
     colnames(df)[1] <- col_amostra
@@ -182,31 +197,24 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
     return(df)
   }
 
-  d_maximo <- max(df_processado[[col_diametro]], na.rm = TRUE)
-
-  lista_curvas <- lapply(1:nrow(df_dma), function(i) {
-    gerar_curva(
-      amostra = df_dma[[col_amostra]][i],
-      mod = df_dma$Modelo_Vencedor[i],
-      param_a = df_dma$Param_a[i],
-      param_b = df_dma$Param_b[i],
-      d_max = d_maximo
-    )
+  d_maximo <- max(df_proc_subset[[col_diametro]], na.rm = TRUE)
+  lista_curvas <- lapply(1:nrow(df_dma_subset), function(i) {
+    gerar_curva(df_dma_subset[[col_amostra]][i], df_dma_subset$Modelo_Vencedor[i],
+                df_dma_subset$Param_a[i], df_dma_subset$Param_b[i], d_maximo)
   })
 
   df_curvas <- do.call(rbind, lista_curvas)
 
   p <- ggplot2::ggplot() +
     ggplot2::geom_line(data = df_curvas, ggplot2::aes(x = .data[[col_diametro]], y = F_teorica), color = "blue", linewidth = 0.8) +
-    ggplot2::geom_point(data = df_processado, ggplot2::aes(x = .data[[col_diametro]], y = F_acumulada), size = 2) +
-    ggplot2::geom_vline(data = df_dma, ggplot2::aes(xintercept = DMA), color = "darkred", linetype = "dashed") +
+    ggplot2::geom_point(data = df_proc_subset, ggplot2::aes(x = .data[[col_diametro]], y = F_acumulada), size = 2) +
+    ggplot2::geom_vline(data = df_dma_subset, ggplot2::aes(xintercept = DMA), color = "darkred", linetype = "dashed") +
     ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
     ggplot2::labs(
       title = "Ajuste do Diâmetro Médio de Agregados (DMA)",
       subtitle = "Linha azul: Modelo Vencedor | Linha tracejada vermelha: DMA",
       x = "Diâmetro (mm)",
-      y = "Fração Acumulada (g/g)",
-      caption = "Nota: van Lier & Albuquerque (1997) recomendam o uso do DMA apenas se R² >= 0,99."
+      y = "Fração Acumulada (g/g)"
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
@@ -216,6 +224,7 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
 
   return(p)
 }
+
 
 
 #' Executa análise completa e detalhada de agregação
@@ -446,24 +455,44 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
 #' Plota a distribuição de tamanho de agregados
 #'
 #' Cria um gráfico de barras ilustrando a proporção de massa retida
-#' em cada classe de diâmetro para cada amostra.
+#' em cada classe de diâmetro para as amostras selecionadas.
 #'
 #' @param df_processado Data frame. O objeto \code{dados_processados} retornado pela função \code{prep_agregados()}.
 #' @param col_amostra String. Nome da coluna de identificação da amostra.
 #' @param col_diametro String. Nome da coluna de diâmetro limite das classes (mm).
+#' @param amostras_selecionadas Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.
 #'
 #' @return Um objeto ggplot com o painel de distribuição por amostra.
 #' @export
-plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
+plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm", amostras_selecionadas = NULL) {
 
-  # Criar uma cópia isolada para plotagem
-  df_plot <- df_processado
+  amostras_totais <- unique(df_processado[[col_amostra]])
 
-  # Converter fração para porcentagem para o eixo Y
+  if (is.null(amostras_selecionadas)) {
+    if (length(amostras_totais) > 6) {
+      message("Nenhuma amostra específica foi selecionada. Exibindo as 6 primeiras. Use o argumento 'amostras_selecionadas' para escolher outras.")
+      amostras_selecionadas <- amostras_totais[1:6]
+    } else {
+      amostras_selecionadas <- amostras_totais
+    }
+  } else {
+    # Filtra apenas as amostras que realmente existem nos dados
+    amostras_invalidas <- setdiff(amostras_selecionadas, amostras_totais)
+    if (length(amostras_invalidas) > 0) {
+      warning(paste("A(s) seguinte(s) amostra(s) não foi/foram encontrada(s) e será(ão) ignorada(s):",
+                    paste(amostras_invalidas, collapse = ", ")))
+    }
+    amostras_selecionadas <- intersect(amostras_selecionadas, amostras_totais)
+
+    if (length(amostras_selecionadas) > 6) {
+      warning("Você selecionou mais de 6 amostras. O gráfico pode ficar comprimido e difícil de ler.")
+    }
+  }
+
+  df_plot <- df_processado[df_processado[[col_amostra]] %in% amostras_selecionadas, ]
   df_plot$Porcentagem <- df_plot$fracao_massa * 100
 
-  # Ordenar o eixo X (peneiras) de forma decrescente (do maior diâmetro para o menor)
-  niveis_ordem <- sort(unique(df_plot[[col_diametro]]), decreasing = TRUE)
+  niveis_ordem <- sort(unique(df_plot[[col_diametro]]), decreasing = FALSE)
 
   p <- ggplot2::ggplot(df_plot, ggplot2::aes(
     x = factor(.data[[col_diametro]], levels = niveis_ordem),
@@ -471,13 +500,12 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
   )) +
     ggplot2::geom_col(fill = "#2c3e50", color = "black", alpha = 0.85) +
     ggplot2::geom_text(ggplot2::aes(label = round(Porcentagem, 1)),
-                       vjust = -0.5, size = 3, color = "black") +
+                       vjust = -0.5, size = 3) +
     ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
     ggplot2::labs(
       title = "Distribuição de Agregados por Classe de Tamanho",
       x = "Diâmetro Limite da Classe (mm)",
-      y = "Massa Retida (%)",
-      caption = "Valores sobre as barras representam a porcentagem de massa."
+      y = "Massa Retida (%)"
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
@@ -486,12 +514,9 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
       axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
     )
 
-  # Adiciona uma margem superior para o texto não cortar
   p <- p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15)))
-
   return(p)
 }
-
 
 
 #' Exporta os resultados da análise de agregação para Excel

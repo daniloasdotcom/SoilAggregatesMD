@@ -1,3 +1,7 @@
+# SoilAggregatesMD 0.4.0
+
+* **Visualização da Distribuição Original:** Adicionada a função `plot_distribuicao_agregados()`, que gera gráficos de barras facetados ilustrando a proporção percentual de massa retida em cada classe de peneira. O gráfico ordena automaticamente as classes do maior para o menor diâmetro, auxiliando na inspeção inicial de qualidade e detecção de assimetrias antes do cálculo dos modelos.
+
 # SoilAggregatesMD 0.3.0
 
 * **Nova Função de Exportação:** Adicionada a função `exportar_analise_xlsx()`, que permite exportar os resultados da `analise_completa_dma()` diretamente para um arquivo Excel (`.xlsx`). O arquivo gerado organiza automaticamente o resumo geral e os detalhes de ajuste dos modelos em abas separadas.

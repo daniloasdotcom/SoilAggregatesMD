@@ -8,8 +8,20 @@ plot_dma(
   df_processado,
   df_dma,
   col_amostra = "amostra_id",
-  col_diametro = "diametro_mm"
+  col_diametro = "diametro_mm",
+  amostras_selecionadas = NULL
 )
+}
+\arguments{
+\item{df_processado}{Data frame retornado por \code{prep_agregados()}.}
+
+\item{df_dma}{Data frame de resumo retornado por \code{analise_completa_dma()}.}
+
+\item{col_amostra}{String. Nome da coluna de identificação.}
+
+\item{col_diametro}{String. Nome da coluna de diâmetro (mm).}
+
+\item{amostras_selecionadas}{Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.}
 }
 \description{
 Plota as curvas de retenção e o ajuste do DMA
