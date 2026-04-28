@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{plot_diagnostico_amostra}
 \alias{plot_diagnostico_amostra}
-\title{Gráfico de diagnóstico comparativo para uma amostra}
+\title{Grafico de diagnostico comparativo para uma amostra}
 \usage{
 plot_diagnostico_amostra(
   dados,
@@ -12,6 +12,20 @@ plot_diagnostico_amostra(
   col_massa = "massa_g"
 )
 }
+\arguments{
+\item{dados}{Data frame bruto.}
+
+\item{amostra_id_alvo}{String. ID da amostra que sera avaliada.}
+
+\item{col_amostra}{String. Nome da coluna de identificacao.}
+
+\item{col_diametro}{String. Nome da coluna de diametro (mm).}
+
+\item{col_massa}{String. Nome da coluna com a massa (g).}
+}
+\value{
+Objeto ggplot com os 7 modelos testados para a mesma amostra.
+}
 \description{
-Gráfico de diagnóstico comparativo para uma amostra
+Grafico de diagnostico comparativo para uma amostra
 }

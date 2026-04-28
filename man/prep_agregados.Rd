@@ -11,6 +11,18 @@ prep_agregados(
   col_massa = "massa_g"
 )
 }
+\arguments{
+\item{df}{Data frame com os dados brutos.}
+
+\item{col_amostra}{String. Nome da coluna de identificacao da amostra.}
+
+\item{col_diametro}{String. Nome da coluna de diametro (mm).}
+
+\item{col_massa}{String. Nome da coluna com a massa (g).}
+}
+\value{
+Uma lista contendo os dados processados e os indices tradicionais.
+}
 \description{
 Prepara dados de peneiramento e calcula DMP e DMG
 }

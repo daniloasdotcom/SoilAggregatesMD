@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{plot_dma}
 \alias{plot_dma}
-\title{Plota as curvas de retenção e o ajuste do DMA}
+\title{Plota as curvas de retencao e o ajuste do DMA}
 \usage{
 plot_dma(
   df_processado,
@@ -17,12 +17,15 @@ plot_dma(
 
 \item{df_dma}{Data frame de resumo retornado por \code{analise_completa_dma()}.}
 
-\item{col_amostra}{String. Nome da coluna de identificação.}
+\item{col_amostra}{String. Nome da coluna de identificacao.}
 
-\item{col_diametro}{String. Nome da coluna de diâmetro (mm).}
+\item{col_diametro}{String. Nome da coluna de diametro (mm).}
 
-\item{amostras_selecionadas}{Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.}
+\item{amostras_selecionadas}{Vetor opcional de caracteres. IDs das amostras a serem plotadas.}
+}
+\value{
+Um objeto ggplot2 com os graficos.
 }
 \description{
-Plota as curvas de retenção e o ajuste do DMA
+Plota as curvas de retencao e o ajuste do DMA
 }

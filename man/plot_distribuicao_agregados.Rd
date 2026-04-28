@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{plot_distribuicao_agregados}
 \alias{plot_distribuicao_agregados}
-\title{Plota a distribuição de tamanho de agregados}
+\title{Plota a distribuicao de tamanho de agregados}
 \usage{
 plot_distribuicao_agregados(
   df_processado,
@@ -12,18 +12,18 @@ plot_distribuicao_agregados(
 )
 }
 \arguments{
-\item{df_processado}{Data frame. O objeto \code{dados_processados} retornado pela função \code{prep_agregados()}.}
+\item{df_processado}{Data frame. O objeto retornado pela funcao \code{prep_agregados()}.}
 
-\item{col_amostra}{String. Nome da coluna de identificação da amostra.}
+\item{col_amostra}{String. Nome da coluna de identificacao da amostra.}
 
-\item{col_diametro}{String. Nome da coluna de diâmetro limite das classes (mm).}
+\item{col_diametro}{String. Nome da coluna de diametro limite das classes (mm).}
 
-\item{amostras_selecionadas}{Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.}
+\item{amostras_selecionadas}{Vetor opcional de caracteres com IDs das amostras a serem plotadas.}
 }
 \value{
-Um objeto ggplot com o painel de distribuição por amostra.
+Um objeto ggplot com o painel de distribuicao por amostra.
 }
 \description{
-Cria um gráfico de barras ilustrando a proporção de massa retida
-em cada classe de diâmetro para as amostras selecionadas.
+Cria um grafico de barras ilustrando a proporcao de massa retida
+em cada classe de diametro para as amostras selecionadas.
 }

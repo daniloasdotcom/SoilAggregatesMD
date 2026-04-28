@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{exportar_analise_xlsx}
 \alias{exportar_analise_xlsx}
-\title{Exporta os resultados da análise de agregação para Excel}
+\title{Exporta os resultados da analise de agregacao para Excel}
 \usage{
 exportar_analise_xlsx(lista_analise, caminho_arquivo = "resultados_dma.xlsx")
 }
@@ -12,10 +12,8 @@ exportar_analise_xlsx(lista_analise, caminho_arquivo = "resultados_dma.xlsx")
 \item{caminho_arquivo}{String. O nome ou caminho completo do arquivo a ser criado.}
 }
 \value{
-A função não retorna um objeto no R, mas salva o arquivo no disco.
+A funcao nao retorna um objeto no R, mas salva o arquivo no disco.
 }
 \description{
-Esta função recebe o objeto de lista gerado pela função
-\code{analise_completa_dma()} e salva as tabelas de resumo e
-detalhes em abas separadas de um arquivo .xlsx.
+Exporta os resultados da analise de agregacao para Excel
 }

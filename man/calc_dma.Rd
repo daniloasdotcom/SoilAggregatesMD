@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{calc_dma}
 \alias{calc_dma}
-\title{Calcula o Diâmetro Médio Ajustado (DMA)}
+\title{Calcula o Diametro Medio Ajustado (DMA)}
 \usage{
 calc_dma(
   df_processado,
@@ -10,6 +10,16 @@ calc_dma(
   col_diametro = "diametro_mm"
 )
 }
+\arguments{
+\item{df_processado}{Data frame retornado por prep_agregados.}
+
+\item{col_amostra}{String. Nome da coluna de identificacao.}
+
+\item{col_diametro}{String. Nome da coluna de diametro (mm).}
+}
+\value{
+Data frame de resumo com os resultados do DMA por amostra.
+}
 \description{
-Calcula o Diâmetro Médio Ajustado (DMA)
+Calcula o Diametro Medio Ajustado (DMA)
 }

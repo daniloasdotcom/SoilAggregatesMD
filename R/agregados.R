@@ -1,5 +1,17 @@
+#' @importFrom utils globalVariables
+utils::globalVariables(c(
+  ".data", "DMA", "DMA_ref", "D_aritmetico", "F_acumulada",
+  "F_acumulada_inf", "F_teorica", "Porcentagem", "diametro_inf",
+  "diametro_mm", "fracao_massa", "massa_total", "F_media", "Equacao_Label"
+))
+
 #' Prepara dados de peneiramento e calcula DMP e DMG
 #'
+#' @param df Data frame com os dados brutos.
+#' @param col_amostra String. Nome da coluna de identificacao da amostra.
+#' @param col_diametro String. Nome da coluna de diametro (mm).
+#' @param col_massa String. Nome da coluna com a massa (g).
+#' @return Uma lista contendo os dados processados e os indices tradicionais.
 #' @export
 prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
@@ -36,8 +48,12 @@ prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diame
 }
 
 
-#' Calcula o Diâmetro Médio Ajustado (DMA)
+#' Calcula o Diametro Medio Ajustado (DMA)
 #'
+#' @param df_processado Data frame retornado por prep_agregados.
+#' @param col_amostra String. Nome da coluna de identificacao.
+#' @param col_diametro String. Nome da coluna de diametro (mm).
+#' @return Data frame de resumo com os resultados do DMA por amostra.
 #' @export
 calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm") {
 
@@ -144,21 +160,21 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
   rownames(tabela_final) <- NULL
 
   if (any(tabela_final$R2 < 0.99, na.rm = TRUE)) {
-    warning("Atenção: Pelo menos uma amostra apresentou R2 máximo inferior a 0,99. ",
-            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0,99.")
+    warning("Atencao: Pelo menos uma amostra apresentou R2 maximo inferior a 0.99. ",
+            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0.99.")
   }
 
   return(tabela_final)
 }
 
-#' Plota as curvas de retenção e o ajuste do DMA
+#' Plota as curvas de retencao e o ajuste do DMA
 #'
 #' @param df_processado Data frame retornado por \code{prep_agregados()}.
 #' @param df_dma Data frame de resumo retornado por \code{analise_completa_dma()}.
-#' @param col_amostra String. Nome da coluna de identificação.
-#' @param col_diametro String. Nome da coluna de diâmetro (mm).
-#' @param amostras_selecionadas Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.
-#'
+#' @param col_amostra String. Nome da coluna de identificacao.
+#' @param col_diametro String. Nome da coluna de diametro (mm).
+#' @param amostras_selecionadas Vetor opcional de caracteres. IDs das amostras a serem plotadas.
+#' @return Um objeto ggplot2 com os graficos.
 #' @export
 plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diametro = "diametro_mm", amostras_selecionadas = NULL) {
 
@@ -166,7 +182,7 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
 
   if (is.null(amostras_selecionadas)) {
     if (length(amostras_totais) > 6) {
-      message("Nenhuma amostra específica foi selecionada. Exibindo as 6 primeiras. Use o argumento 'amostras_selecionadas' para customizar.")
+      message("Nenhuma amostra especifica foi selecionada. Exibindo as 6 primeiras.")
       amostras_selecionadas <- amostras_totais[1:6]
     } else {
       amostras_selecionadas <- amostras_totais
@@ -174,7 +190,7 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
   } else {
     amostras_selecionadas <- intersect(amostras_selecionadas, amostras_totais)
     if (length(amostras_selecionadas) > 6) {
-      warning("Você selecionou mais de 6 amostras. O gráfico pode ficar comprimido.")
+      warning("Voce selecionou mais de 6 amostras. O grafico pode ficar comprimido.")
     }
   }
 
@@ -211,10 +227,10 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
     ggplot2::geom_vline(data = df_dma_subset, ggplot2::aes(xintercept = DMA), color = "darkred", linetype = "dashed") +
     ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
     ggplot2::labs(
-      title = "Ajuste do Diâmetro Médio de Agregados (DMA)",
+      title = "Ajuste do Diametro Medio de Agregados (DMA)",
       subtitle = "Linha azul: Modelo Vencedor | Linha tracejada vermelha: DMA",
-      x = "Diâmetro (mm)",
-      y = "Fração Acumulada (g/g)"
+      x = "Diametro (mm)",
+      y = "Fracao Acumulada (g/g)"
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
@@ -227,8 +243,13 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
 
 
 
-#' Executa análise completa e detalhada de agregação
+#' Executa analise completa e detalhada de agregacao
 #'
+#' @param dados Data frame bruto de peneiramento.
+#' @param col_amostra String. Nome da coluna de identificacao.
+#' @param col_diametro String. Nome da coluna de diametro (mm).
+#' @param col_massa String. Nome da coluna com a massa (g).
+#' @return Uma lista contendo o resumo consolidado e os detalhes dos ajustes das equacoes.
 #' @export
 analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
@@ -309,14 +330,13 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
     if(nrow(res_validos) > 0) {
       melhor <- res_validos[which.max(res_validos$R2), ]
 
-      # --- A CORREÇÃO ESTÁ AQUI NESTE BLOCO ---
       lista_resumo_dma[[i]] <- data.frame(
         amostra_id = id,
         DMA = melhor$DMA_calculado,
-        Modelo_Vencedor = melhor$Equacao, # Nome corrigido para combinar com o plot
+        Modelo_Vencedor = melhor$Equacao,
         R2_Melhor = melhor$R2,
-        Param_a = melhor$Param_a,         # Adicionado para o plot
-        Param_b = melhor$Param_b          # Adicionado para o plot
+        Param_a = melhor$Param_a,
+        Param_b = melhor$Param_b
       )
     } else {
       lista_resumo_dma[[i]] <- data.frame(
@@ -332,19 +352,25 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
   colnames(tab_detalhes)[1] <- col_amostra
 
   resumo_final <- dplyr::left_join(indices_trad, tab_dma, by = col_amostra)
-  resumo_final$Uso_Recomendado <- ifelse(resumo_final$R2_Melhor >= 0.99, "Sim", "Não (R2 < 0.99)")
+  resumo_final$Uso_Recomendado <- ifelse(resumo_final$R2_Melhor >= 0.99, "Sim", "Nao (R2 < 0.99)")
 
   if (any(resumo_final$R2_Melhor < 0.99, na.rm = TRUE)) {
-    warning("Atenção: Pelo menos uma amostra apresentou R2 máximo inferior a 0,99. ",
-            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0,99.")
+    warning("Atencao: Pelo menos uma amostra apresentou R2 maximo inferior a 0.99. ",
+            "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0.99.")
   }
 
   return(list(resumo = resumo_final, detalhes_equacoes = tab_detalhes))
 }
 
 
-#' Gráfico de diagnóstico comparativo para uma amostra
+#' Grafico de diagnostico comparativo para uma amostra
 #'
+#' @param dados Data frame bruto.
+#' @param amostra_id_alvo String. ID da amostra que sera avaliada.
+#' @param col_amostra String. Nome da coluna de identificacao.
+#' @param col_diametro String. Nome da coluna de diametro (mm).
+#' @param col_massa String. Nome da coluna com a massa (g).
+#' @return Objeto ggplot com os 7 modelos testados para a mesma amostra.
 #' @export
 plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amostra_id",
                                      col_diametro = "diametro_mm", col_massa = "massa_g") {
@@ -415,7 +441,7 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     }, error = function(e) { })
 
     label_info <- paste0(eq, "\n",
-                         "R² = ", ifelse(is.na(r2_val), "NA", round(r2_val, 4)), "\n",
+                         "R2 = ", ifelse(is.na(r2_val), "NA", round(r2_val, 4)), "\n",
                          "a = ", ifelse(is.na(a_val), "NA", round(a_val, 3)), "\n",
                          "b = ", ifelse(is.na(b_val), "NA", round(b_val, 3)), "\n",
                          "DMA = ", ifelse(is.na(dma_val), "NA", round(dma_val, 3)), " mm")
@@ -440,9 +466,9 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     ggplot2::geom_point(data = df_pontos, ggplot2::aes(x = diametro_mm, y = F_acumulada)) +
     ggplot2::geom_vline(data = df_pontos, ggplot2::aes(xintercept = DMA_ref), color = "red", linetype = "dashed") +
     ggplot2::facet_wrap(~Equacao_Label, ncol = 3) +
-    ggplot2::labs(title = paste("Diagnóstico de Modelos - Amostra:", amostra_id_alvo),
-                  x = "Diâmetro (mm)", y = "Fração Acumulada (g/g)",
-                  caption = "Nota: van Lier & Albuquerque (1997) recomendam o uso do DMA apenas se R² >= 0,99.") +
+    ggplot2::labs(title = paste("Diagnostico de Modelos - Amostra:", amostra_id_alvo),
+                  x = "Diametro (mm)", y = "Fracao Acumulada (g/g)",
+                  caption = "Nota: van Lier & Albuquerque (1997) recomendam o uso do DMA apenas se R2 >= 0.99.") +
     ggplot2::theme_bw() +
     ggplot2::theme(
       strip.background = ggplot2::element_rect(fill = "gray90"),
@@ -452,17 +478,17 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
   return(p)
 }
 
-#' Plota a distribuição de tamanho de agregados
+#' Plota a distribuicao de tamanho de agregados
 #'
-#' Cria um gráfico de barras ilustrando a proporção de massa retida
-#' em cada classe de diâmetro para as amostras selecionadas.
+#' Cria um grafico de barras ilustrando a proporcao de massa retida
+#' em cada classe de diametro para as amostras selecionadas.
 #'
-#' @param df_processado Data frame. O objeto \code{dados_processados} retornado pela função \code{prep_agregados()}.
-#' @param col_amostra String. Nome da coluna de identificação da amostra.
-#' @param col_diametro String. Nome da coluna de diâmetro limite das classes (mm).
-#' @param amostras_selecionadas Vetor opcional de caracteres. IDs das amostras a serem plotadas. Se \code{NULL}, plota as 6 primeiras.
+#' @param df_processado Data frame. O objeto retornado pela funcao \code{prep_agregados()}.
+#' @param col_amostra String. Nome da coluna de identificacao da amostra.
+#' @param col_diametro String. Nome da coluna de diametro limite das classes (mm).
+#' @param amostras_selecionadas Vetor opcional de caracteres com IDs das amostras a serem plotadas.
 #'
-#' @return Um objeto ggplot com o painel de distribuição por amostra.
+#' @return Um objeto ggplot com o painel de distribuicao por amostra.
 #' @export
 plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm", amostras_selecionadas = NULL) {
 
@@ -470,22 +496,21 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
 
   if (is.null(amostras_selecionadas)) {
     if (length(amostras_totais) > 6) {
-      message("Nenhuma amostra específica foi selecionada. Exibindo as 6 primeiras. Use o argumento 'amostras_selecionadas' para escolher outras.")
+      message("Nenhuma amostra especifica selecionada. Exibindo as 6 primeiras.")
       amostras_selecionadas <- amostras_totais[1:6]
     } else {
       amostras_selecionadas <- amostras_totais
     }
   } else {
-    # Filtra apenas as amostras que realmente existem nos dados
     amostras_invalidas <- setdiff(amostras_selecionadas, amostras_totais)
     if (length(amostras_invalidas) > 0) {
-      warning(paste("A(s) seguinte(s) amostra(s) não foi/foram encontrada(s) e será(ão) ignorada(s):",
+      warning(paste("A amostra nao foi encontrada e sera ignorada:",
                     paste(amostras_invalidas, collapse = ", ")))
     }
     amostras_selecionadas <- intersect(amostras_selecionadas, amostras_totais)
 
     if (length(amostras_selecionadas) > 6) {
-      warning("Você selecionou mais de 6 amostras. O gráfico pode ficar comprimido e difícil de ler.")
+      warning("Voce selecionou mais de 6 amostras. O grafico pode ficar comprimido.")
     }
   }
 
@@ -503,8 +528,8 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
                        vjust = -0.5, size = 3) +
     ggplot2::facet_wrap(stats::as.formula(paste("~", col_amostra))) +
     ggplot2::labs(
-      title = "Distribuição de Agregados por Classe de Tamanho",
-      x = "Diâmetro Limite da Classe (mm)",
+      title = "Distribuicao de Agregados por Classe de Tamanho",
+      x = "Diametro Limite da Classe (mm)",
       y = "Massa Retida (%)"
     ) +
     ggplot2::theme_bw() +
@@ -519,29 +544,25 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
 }
 
 
-#' Exporta os resultados da análise de agregação para Excel
-#'
-#' Esta função recebe o objeto de lista gerado pela função
-#' \code{analise_completa_dma()} e salva as tabelas de resumo e
-#' detalhes em abas separadas de um arquivo .xlsx.
+#' Exporta os resultados da analise de agregacao para Excel
 #'
 #' @param lista_analise Lista. O objeto retornado por \code{analise_completa_dma()}.
 #' @param caminho_arquivo String. O nome ou caminho completo do arquivo a ser criado.
 #'
-#' @return A função não retorna um objeto no R, mas salva o arquivo no disco.
+#' @return A funcao nao retorna um objeto no R, mas salva o arquivo no disco.
 #' @export
 #'
 exportar_analise_xlsx <- function(lista_analise, caminho_arquivo = "resultados_dma.xlsx") {
 
   if (!requireNamespace("writexl", quietly = TRUE)) {
     stop(
-      "O pacote 'writexl' é necessário para esta função. ",
+      "O pacote 'writexl' e necessario para esta funcao. ",
       "Por favor, instale-o com install.packages('writexl')"
     )
   }
 
   if (!is.list(lista_analise) || !all(c("resumo", "detalhes_equacoes") %in% names(lista_analise))) {
-    stop("A entrada deve ser a lista retornada pela função analise_completa_dma().")
+    stop("A entrada deve ser a lista retornada pela funcao analise_completa_dma().")
   }
 
   dados_para_exportar <- list(

@@ -1,14 +1,18 @@
 Package: SoilAggregatesMD
-Title: What the Package Does (One Line, Title Case)
+Title: Analise de Distribuicao de Agregados do Solo e Calculo do DMA
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Danilo", "Silva", email = "danilo@exemplo.com", role = c("aut", "cre"))
+Description: Automatiza o calculo e a analise da distribuicao de agregados do solo, 
+    com foco especial no Diametro Medio Ajustado (DMA), conforme proposto por 
+    van Lier & Albuquerque (1997). Permite processar grandes volumes de dados 
+    de peneiramento, testar modelos de regressao nao-linear e gerar diagnosticos visuais.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+Depends: 
+    R (>= 4.1.0)
 Imports: 
     dplyr,
     ggplot2,
@@ -16,3 +20,8 @@ Imports:
     writexl
 URL: https://github.com/daniloasdotcom/SoilAggregatesMD
 BugReports: https://github.com/daniloasdotcom/SoilAggregatesMD/issues
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+LazyData: true

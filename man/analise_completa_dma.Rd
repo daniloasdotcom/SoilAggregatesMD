@@ -2,7 +2,7 @@
 % Please edit documentation in R/agregados.R
 \name{analise_completa_dma}
 \alias{analise_completa_dma}
-\title{Executa análise completa e detalhada de agregação}
+\title{Executa analise completa e detalhada de agregacao}
 \usage{
 analise_completa_dma(
   dados,
@@ -11,6 +11,18 @@ analise_completa_dma(
   col_massa = "massa_g"
 )
 }
+\arguments{
+\item{dados}{Data frame bruto de peneiramento.}
+
+\item{col_amostra}{String. Nome da coluna de identificacao.}
+
+\item{col_diametro}{String. Nome da coluna de diametro (mm).}
+
+\item{col_massa}{String. Nome da coluna com a massa (g).}
+}
+\value{
+Uma lista contendo o resumo consolidado e os detalhes dos ajustes das equacoes.
+}
 \description{
-Executa análise completa e detalhada de agregação
+Executa analise completa e detalhada de agregacao
 }
