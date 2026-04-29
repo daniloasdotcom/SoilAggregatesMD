@@ -2,7 +2,7 @@ Package: SoilAggregatesMD
 Title: Analise de Distribuicao de Agregados do Solo e Calculo do DMA
 Version: 0.0.0.9000
 Authors@R: 
-    person("Danilo", "Silva", email = "danilo@exemplo.com", role = c("aut", "cre"))
+    person("Danilo", "Santos", email = "danilo_as@live.com", role = c("aut", "cre"))
 Description: Automatiza o calculo e a analise da distribuicao de agregados do solo, 
     com foco especial no Diametro Medio Ajustado (DMA), conforme proposto por 
     van Lier & Albuquerque (1997). Permite processar grandes volumes de dados 
