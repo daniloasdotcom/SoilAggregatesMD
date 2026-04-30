@@ -1,4 +1,5 @@
 #' @importFrom utils globalVariables
+#' @importFrom minpack.lm nlsLM
 utils::globalVariables(c(
   ".data", "DMA", "DMA_ref", "D_aritmetico", "F_acumulada",
   "F_acumulada_inf", "F_teorica", "Porcentagem", "diametro_inf",
@@ -14,6 +15,18 @@ utils::globalVariables(c(
 #' @return Uma lista contendo os dados processados e os indices tradicionais.
 #' @export
 prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
+
+  # --- SANITY CHECKS ---
+  if (!is.data.frame(df)) {
+    stop("Erro: O argumento 'df' deve ser um data.frame.")
+  }
+  if (!all(c(col_amostra, col_diametro, col_massa) %in% colnames(df))) {
+    stop("Erro: Uma ou mais colunas especificadas nao foram encontradas no data.frame.")
+  }
+  if (any(is.na(df[[col_massa]])) || any(df[[col_massa]] < 0)) {
+    stop("Erro: A coluna de massa contem valores ausentes (NA) ou negativos.")
+  }
+  # ---------------------
 
   tabela_base <- df |>
     dplyr::group_by(.data[[col_amostra]]) |>
@@ -38,6 +51,7 @@ prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diame
     dplyr::summarise(
       DMP = sum(fracao_massa * D_aritmetico, na.rm = TRUE),
       DMG = exp(sum(fracao_massa * log(D_aritmetico), na.rm = TRUE)),
+      Fracao_Maior_2mm_pct = sum(fracao_massa[.data[[col_diametro]] >= 2], na.rm = TRUE) * 100,
       .groups = "drop"
     )
 
@@ -46,7 +60,6 @@ prep_agregados <- function(df, col_amostra = "amostra_id", col_diametro = "diame
     indices = indices_tradicionais
   ))
 }
-
 
 #' Calcula o Diametro Medio Ajustado (DMA)
 #'
@@ -63,6 +76,10 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
     return(1 - (sq_res / sq_tot))
   }
 
+  calcular_rmse <- function(obs, pred) {
+    return(sqrt(mean((obs - pred)^2, na.rm = TRUE)))
+  }
+
   amostras_lista <- split(df_processado, df_processado[[col_amostra]])
 
   resultados_dma <- lapply(amostras_lista, function(dados_amostra) {
@@ -74,47 +91,57 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
     modelos <- list()
 
     tryCatch({
-      mod1 <- stats::nls(F_vetor ~ 1 / (a + (b / D_vetor)), start = list(a = 1, b = 1))
-      modelos[["Eq3"]] <- list(nome = "Eq3", a = stats::coef(mod1)["a"], b = stats::coef(mod1)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod1)))
+      mod1 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ 1 / (a + (b / D_vetor)), start = list(a = 1, b = 1)))
+      modelos[["Eq3"]] <- list(nome = "Eq3", a = stats::coef(mod1)["a"], b = stats::coef(mod1)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod1)), rmse = calcular_rmse(F_vetor, stats::predict(mod1)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod2 <- stats::nls(F_vetor ~ 1 / (a + (b / sqrt(D_vetor))), start = list(a = 1, b = 1))
-      modelos[["Eq4"]] <- list(nome = "Eq4", a = stats::coef(mod2)["a"], b = stats::coef(mod2)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod2)))
+      mod2 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ 1 / (a + (b / sqrt(D_vetor))), start = list(a = 1, b = 1)))
+      modelos[["Eq4"]] <- list(nome = "Eq4", a = stats::coef(mod2)["a"], b = stats::coef(mod2)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod2)), rmse = calcular_rmse(F_vetor, stats::predict(mod2)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod3 <- stats::nls(F_vetor ~ a * (D_vetor^b), start = list(a = 1, b = 1))
-      modelos[["Eq5"]] <- list(nome = "Eq5", a = stats::coef(mod3)["a"], b = stats::coef(mod3)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod3)))
+      mod3 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ a * (D_vetor^b), start = list(a = 1, b = 1)))
+      modelos[["Eq5"]] <- list(nome = "Eq5", a = stats::coef(mod3)["a"], b = stats::coef(mod3)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod3)), rmse = calcular_rmse(F_vetor, stats::predict(mod3)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod4 <- stats::nls(F_vetor ~ 1 - exp(-(D_vetor/a)^b), start = list(a = max(D_vetor)/2, b = 1))
-      modelos[["Weibull"]] <- list(nome = "Weibull", a = stats::coef(mod4)["a"], b = stats::coef(mod4)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod4)))
+      mod4 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ 1 - exp(-(D_vetor/a)^b), start = list(a = max(D_vetor)/2, b = 1)))
+      modelos[["Weibull"]] <- list(nome = "Weibull", a = stats::coef(mod4)["a"], b = stats::coef(mod4)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod4)), rmse = calcular_rmse(F_vetor, stats::predict(mod4)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod5 <- stats::nls(F_vetor ~ 1 / (1 + exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor)))
-      modelos[["Logistic"]] <- list(nome = "Logistic", a = stats::coef(mod5)["a"], b = stats::coef(mod5)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod5)))
+      mod5 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ 1 / (1 + exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor))))
+      modelos[["Logistic"]] <- list(nome = "Logistic", a = stats::coef(mod5)["a"], b = stats::coef(mod5)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod5)), rmse = calcular_rmse(F_vetor, stats::predict(mod5)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod6 <- stats::nls(F_vetor ~ stats::plnorm(D_vetor, a, b), start = list(a = 0, b = 1))
-      modelos[["LogNormal"]] <- list(nome = "LogNormal", a = stats::coef(mod6)["a"], b = stats::coef(mod6)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod6)))
+      mod6 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ stats::plnorm(D_vetor, a, b), start = list(a = 0, b = 1)))
+      modelos[["LogNormal"]] <- list(nome = "LogNormal", a = stats::coef(mod6)["a"], b = stats::coef(mod6)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod6)), rmse = calcular_rmse(F_vetor, stats::predict(mod6)))
     }, error = function(e) NULL)
 
     tryCatch({
-      mod7 <- stats::nls(F_vetor ~ exp(-exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor)))
-      modelos[["Gompertz"]] <- list(nome = "Gompertz", a = stats::coef(mod7)["a"], b = stats::coef(mod7)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod7)))
+      mod7 <- suppressWarnings(minpack.lm::nlsLM(F_vetor ~ exp(-exp(-a * (D_vetor - b))), start = list(a = 1, b = mean(D_vetor))))
+      modelos[["Gompertz"]] <- list(nome = "Gompertz", a = stats::coef(mod7)["a"], b = stats::coef(mod7)["b"], r2 = calcular_r2(F_vetor, stats::predict(mod7)), rmse = calcular_rmse(F_vetor, stats::predict(mod7)))
     }, error = function(e) NULL)
 
     modelos <- Filter(Negate(is.null), modelos)
 
     if (length(modelos) == 0) {
-      return(data.frame(amostra_id = nome_amostra, DMA = NA, Modelo = NA, R2 = NA, a = NA, b = NA))
+      return(data.frame(amostra_id = nome_amostra, DMA = NA, Modelo = NA, R2 = NA, RMSE = NA, a = NA, b = NA))
     }
 
-    melhor <- modelos[[which.max(sapply(modelos, function(x) x$r2))]]
+    # Logica hibrida: Filtra R2 >= 0.99 e desempata pelo RMSE
+    modelos_df <- do.call(rbind, lapply(modelos, function(x) data.frame(nome=x$nome, r2=x$r2, rmse=x$rmse, stringsAsFactors=FALSE)))
+    modelos_fortes <- modelos_df[modelos_df$r2 >= 0.99, ]
+
+    if (nrow(modelos_fortes) > 0) {
+      melhor_nome <- modelos_fortes$nome[which.min(modelos_fortes$rmse)]
+    } else {
+      melhor_nome <- modelos_df$nome[which.max(modelos_df$r2)]
+    }
+
+    melhor <- modelos[[melhor_nome]]
 
     soma_F <- dados_amostra$F_acumulada + dados_amostra$F_acumulada_inf
     F_m <- soma_F / 2
@@ -148,6 +175,7 @@ calc_dma <- function(df_processado, col_amostra = "amostra_id", col_diametro = "
       DMA = DMA_final,
       Modelo_Vencedor = melhor$nome,
       R2 = melhor$r2,
+      RMSE = melhor$rmse,
       Param_a = melhor$a,
       Param_b = melhor$b
     )
@@ -241,15 +269,13 @@ plot_dma <- function(df_processado, df_dma, col_amostra = "amostra_id", col_diam
   return(p)
 }
 
-
-
 #' Executa analise completa e detalhada de agregacao
 #'
 #' @param dados Data frame bruto de peneiramento.
 #' @param col_amostra String. Nome da coluna de identificacao.
 #' @param col_diametro String. Nome da coluna de diametro (mm).
 #' @param col_massa String. Nome da coluna com a massa (g).
-#' @return Uma lista contendo o resumo consolidado e os detalhes dos ajustes das equacoes.
+#' @return Objeto da classe 'agregados_dma' com resumo consolidado.
 #' @export
 analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro = "diametro_mm", col_massa = "massa_g") {
 
@@ -263,28 +289,21 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
     return(1 - (sq_res / sq_tot))
   }
 
+  calc_rmse <- function(obs, pred) {
+    return(sqrt(mean((obs - pred)^2, na.rm = TRUE)))
+  }
+
   calc_dma_especifico <- function(dados_st, eq_nome, a, b) {
     soma_F <- dados_st$F_acumulada + dados_st$F_acumulada_inf
     F_m <- soma_F / 2
 
-    if (eq_nome == "Eq3") {
-      D_aj <- (b * soma_F) / (2 - (a * soma_F))
-    } else if (eq_nome == "Eq4") {
-      D_aj <- ((b * soma_F) / (2 - (a * soma_F)))^2
-    } else if (eq_nome == "Eq5") {
-      D_aj <- (soma_F / (2 * a))^(1 / b)
-    } else if (eq_nome == "Weibull") {
-      D_aj <- a * (-log(1 - pmin(F_m, 0.9999)))^(1 / b)
-    } else if (eq_nome == "Logistic") {
-      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
-      D_aj <- b - (1 / a) * log((1 / F_m_adj) - 1)
-    } else if (eq_nome == "LogNormal") {
-      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
-      D_aj <- stats::qlnorm(F_m_adj, a, b)
-    } else if (eq_nome == "Gompertz") {
-      F_m_adj <- pmax(pmin(F_m, 0.9999), 0.0001)
-      D_aj <- b - (1 / a) * log(-log(F_m_adj))
-    }
+    if (eq_nome == "Eq3") D_aj <- (b * soma_F) / (2 - (a * soma_F))
+    else if (eq_nome == "Eq4") D_aj <- ((b * soma_F) / (2 - (a * soma_F)))^2
+    else if (eq_nome == "Eq5") D_aj <- (soma_F / (2 * a))^(1 / b)
+    else if (eq_nome == "Weibull") D_aj <- a * (-log(1 - pmin(F_m, 0.9999)))^(1 / b)
+    else if (eq_nome == "Logistic") D_aj <- b - (1 / a) * log((1 / pmax(pmin(F_m, 0.9999), 0.0001)) - 1)
+    else if (eq_nome == "LogNormal") D_aj <- stats::qlnorm(pmax(pmin(F_m, 0.9999), 0.0001), a, b)
+    else if (eq_nome == "Gompertz") D_aj <- b - (1 / a) * log(-log(pmax(pmin(F_m, 0.9999), 0.0001)))
 
     D_aj[!is.finite(D_aj)] <- 0
     D_aj[D_aj < 0] <- 0
@@ -297,15 +316,16 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
 
   tentar_ajuste <- function(formula_nls, start_list, eq_nome, D_vetor, F_obs, dados_st, id) {
     tryCatch({
-      m <- stats::nls(formula_nls, start = start_list)
+      m <- suppressWarnings(minpack.lm::nlsLM(formula_nls, start = start_list))
       a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
-      dma_eq <- calc_dma_especifico(dados_st, eq_nome, a_val, b_val)
+      pred <- stats::predict(m)
+
       data.frame(
-        amostra_id = id, Equacao = eq_nome, R2 = calc_r2(F_obs, stats::predict(m)),
-        DMA_calculado = dma_eq, Param_a = a_val, Param_b = b_val
+        amostra_id = id, Equacao = eq_nome, R2 = calc_r2(F_obs, pred), RMSE = calc_rmse(F_obs, pred),
+        DMA_calculado = calc_dma_especifico(dados_st, eq_nome, a_val, b_val), Param_a = a_val, Param_b = b_val
       )
     }, error = function(e) {
-      data.frame(amostra_id = id, Equacao = eq_nome, R2 = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA)
+      data.frame(amostra_id = id, Equacao = eq_nome, R2 = NA, RMSE = NA, DMA_calculado = NA, Param_a = NA, Param_b = NA)
     })
   }
 
@@ -328,20 +348,28 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
 
     res_validos <- resultados_st[!is.na(resultados_st$R2), ]
     if(nrow(res_validos) > 0) {
-      melhor <- res_validos[which.max(res_validos$R2), ]
+
+      candidatos_fortes <- res_validos[res_validos$R2 >= 0.99, ]
+
+      if (nrow(candidatos_fortes) > 0) {
+        melhor <- candidatos_fortes[which.min(candidatos_fortes$RMSE), ]
+      } else {
+        melhor <- res_validos[which.max(res_validos$R2), ]
+      }
 
       lista_resumo_dma[[i]] <- data.frame(
         amostra_id = id,
         DMA = melhor$DMA_calculado,
         Modelo_Vencedor = melhor$Equacao,
         R2_Melhor = melhor$R2,
+        RMSE_Melhor = melhor$RMSE,
         Param_a = melhor$Param_a,
         Param_b = melhor$Param_b
       )
     } else {
       lista_resumo_dma[[i]] <- data.frame(
         amostra_id = id, DMA = NA, Modelo_Vencedor = NA,
-        R2_Melhor = NA, Param_a = NA, Param_b = NA
+        R2_Melhor = NA, RMSE_Melhor = NA, Param_a = NA, Param_b = NA
       )
     }
   }
@@ -359,9 +387,16 @@ analise_completa_dma <- function(dados, col_amostra = "amostra_id", col_diametro
             "van Lier & Albuquerque (1997) recomendam o uso do DMA apenas quando R2 >= 0.99.")
   }
 
-  return(list(resumo = resumo_final, detalhes_equacoes = tab_detalhes))
-}
+  saida <- list(
+    resumo = resumo_final,
+    detalhes_equacoes = tab_detalhes,
+    dados_processados = df_proc,
+    config = list(col_amostra = col_amostra, col_diametro = col_diametro)
+  )
 
+  class(saida) <- "agregados_dma"
+  return(saida)
+}
 
 #' Grafico de diagnostico comparativo para uma amostra
 #'
@@ -422,13 +457,13 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
     a_val <- NA; b_val <- NA; dma_val <- NA; r2_val <- NA
 
     tryCatch({
-      if(eq == "Eq3") m <- stats::nls(F_obs ~ 1 / (a + (b / D)), start = list(a = 1, b = 1))
-      else if(eq == "Eq4") m <- stats::nls(F_obs ~ 1 / (a + (b / sqrt(D))), start = list(a = 1, b = 1))
-      else if(eq == "Eq5") m <- stats::nls(F_obs ~ a * (D^b), start = list(a = 1, b = 1))
-      else if(eq == "Weibull") m <- stats::nls(F_obs ~ 1 - exp(-(D/a)^b), start = list(a = max(D)/2, b = 1))
-      else if(eq == "Logistic") m <- stats::nls(F_obs ~ 1 / (1 + exp(-a * (D - b))), start = list(a = 1, b = mean(D)))
-      else if(eq == "LogNormal") m <- stats::nls(F_obs ~ stats::plnorm(D, a, b), start = list(a = 0, b = 1))
-      else if(eq == "Gompertz") m <- stats::nls(F_obs ~ exp(-exp(-a * (D - b))), start = list(a = 1, b = mean(D)))
+      if(eq == "Eq3") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ 1 / (a + (b / D)), start = list(a = 1, b = 1)))
+      else if(eq == "Eq4") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ 1 / (a + (b / sqrt(D))), start = list(a = 1, b = 1)))
+      else if(eq == "Eq5") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ a * (D^b), start = list(a = 1, b = 1)))
+      else if(eq == "Weibull") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ 1 - exp(-(D/a)^b), start = list(a = max(D)/2, b = 1)))
+      else if(eq == "Logistic") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ 1 / (1 + exp(-a * (D - b))), start = list(a = 1, b = mean(D))))
+      else if(eq == "LogNormal") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ stats::plnorm(D, a, b), start = list(a = 0, b = 1)))
+      else if(eq == "Gompertz") m <- suppressWarnings(minpack.lm::nlsLM(F_obs ~ exp(-exp(-a * (D - b))), start = list(a = 1, b = mean(D))))
 
       a_val <- stats::coef(m)["a"]; b_val <- stats::coef(m)["b"]
       dma_val <- calc_dma_val(eq, a_val, b_val)
@@ -480,14 +515,10 @@ plot_diagnostico_amostra <- function(dados, amostra_id_alvo, col_amostra = "amos
 
 #' Plota a distribuicao de tamanho de agregados
 #'
-#' Cria um grafico de barras ilustrando a proporcao de massa retida
-#' em cada classe de diametro para as amostras selecionadas.
-#'
 #' @param df_processado Data frame. O objeto retornado pela funcao \code{prep_agregados()}.
 #' @param col_amostra String. Nome da coluna de identificacao da amostra.
 #' @param col_diametro String. Nome da coluna de diametro limite das classes (mm).
 #' @param amostras_selecionadas Vetor opcional de caracteres com IDs das amostras a serem plotadas.
-#'
 #' @return Um objeto ggplot com o painel de distribuicao por amostra.
 #' @export
 plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id", col_diametro = "diametro_mm", amostras_selecionadas = NULL) {
@@ -548,10 +579,8 @@ plot_distribuicao_agregados <- function(df_processado, col_amostra = "amostra_id
 #'
 #' @param lista_analise Lista. O objeto retornado por \code{analise_completa_dma()}.
 #' @param caminho_arquivo String. O nome ou caminho completo do arquivo a ser criado.
-#'
 #' @return A funcao nao retorna um objeto no R, mas salva o arquivo no disco.
 #' @export
-#'
 exportar_analise_xlsx <- function(lista_analise, caminho_arquivo = "resultados_dma.xlsx") {
 
   if (!requireNamespace("writexl", quietly = TRUE)) {
@@ -561,8 +590,8 @@ exportar_analise_xlsx <- function(lista_analise, caminho_arquivo = "resultados_d
     )
   }
 
-  if (!is.list(lista_analise) || !all(c("resumo", "detalhes_equacoes") %in% names(lista_analise))) {
-    stop("A entrada deve ser a lista retornada pela funcao analise_completa_dma().")
+  if (!inherits(lista_analise, "agregados_dma")) {
+    warning("O objeto inserido nao e da classe 'agregados_dma'. A exportacao pode falhar se a estrutura for incompativel.")
   }
 
   dados_para_exportar <- list(
@@ -573,4 +602,35 @@ exportar_analise_xlsx <- function(lista_analise, caminho_arquivo = "resultados_d
   writexl::write_xlsx(dados_para_exportar, path = caminho_arquivo)
 
   message(paste("Arquivo exportado com sucesso para:", caminho_arquivo))
+}
+
+#' Resumo do objeto agregados_dma
+#' @method summary agregados_dma
+#' @export
+summary.agregados_dma <- function(object, ...) {
+  cat("\n=== Resumo da Analise de Agregados (DMP, DMG, DMA) ===\n\n")
+  cat(sprintf("Amostras analisadas: %d\n", nrow(object$resumo)))
+
+  amostras_alerta <- sum(object$resumo$Uso_Recomendado == "Nao (R2 < 0.99)", na.rm = TRUE)
+  if (amostras_alerta > 0) {
+    cat(sprintf("Aviso: %d amostra(s) nao atingiram o criterio de R2 >= 0.99.\n", amostras_alerta))
+  }
+
+  cat("\nTabela de Resultados Principais:\n")
+  print(object$resumo[, c("amostra_id", "DMP", "DMG", "DMA", "Modelo_Vencedor", "R2_Melhor", "RMSE_Melhor")])
+  invisible(object)
+}
+
+#' Plot automatico do objeto agregados_dma
+#' @method plot agregados_dma
+#' @export
+plot.agregados_dma <- function(x, amostras_selecionadas = NULL, ...) {
+  p <- plot_dma(
+    df_processado = x$dados_processados,
+    df_dma = x$resumo,
+    col_amostra = x$config$col_amostra,
+    col_diametro = x$config$col_diametro,
+    amostras_selecionadas = amostras_selecionadas
+  )
+  return(p)
 }

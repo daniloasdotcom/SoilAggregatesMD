@@ -24,6 +24,5 @@ plot_distribuicao_agregados(
 Um objeto ggplot com o painel de distribuicao por amostra.
 }
 \description{
-Cria um grafico de barras ilustrando a proporcao de massa retida
-em cada classe de diametro para as amostras selecionadas.
+Plota a distribuicao de tamanho de agregados
 }

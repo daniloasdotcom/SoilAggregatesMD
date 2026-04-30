@@ -21,7 +21,7 @@ analise_completa_dma(
 \item{col_massa}{String. Nome da coluna com a massa (g).}
 }
 \value{
-Uma lista contendo o resumo consolidado e os detalhes dos ajustes das equacoes.
+Objeto da classe 'agregados_dma' com resumo consolidado.
 }
 \description{
 Executa analise completa e detalhada de agregacao
